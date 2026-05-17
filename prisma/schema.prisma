@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  phone         String?
+  role          Role      @default(STAFF)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  assignedJobs  Job[]     @relation("AssignedTo")
+  createdJobs   Job[]     @relation("CreatedBy")
+  quotes        Quote[]
+  invoices      Invoice[]
+  timeEntries   TimeEntry[]
+  activities    Activity[]
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  company   String?
+  address   String?
+  city      String?
+  state     String?
+  postcode  String?
+  country   String   @default("Australia")
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs      Job[]
+  quotes    Quote[]
+  invoices  Invoice[]
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  number        String    @unique
+  title         String
+  description   String?
+  status        JobStatus @default(PENDING)
+  priority      Priority  @default(MEDIUM)
+  jobType       String?
+
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id])
+
+  assignedToId  String?
+  assignedTo    User?     @relation("AssignedTo", fields: [assignedToId], references: [id])
+
+  createdById   String
+  createdBy     User      @relation("CreatedBy", fields: [createdById], references: [id])
+
+  scheduledDate DateTime?
+  scheduledTime String?
+  duration      Int?
+
+  siteAddress   String?
+  siteCity      String?
+  siteState     String?
+  sitePostcode  String?
+
+  notes         String?
+  internalNotes String?
+
+  quoteId       String?
+  quote         Quote?    @relation(fields: [quoteId], references: [id])
+
+  invoice       Invoice?
+  timeEntries   TimeEntry[]
+  activities    Activity[]
+
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum JobStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+  INVOICED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Quote {
+  id          String      @id @default(cuid())
+  number      String      @unique
+  status      QuoteStatus @default(DRAFT)
+  title       String
+
+  clientId    String
+  client      Client      @relation(fields: [clientId], references: [id])
+
+  createdById String
+  createdBy   User        @relation(fields: [createdById], references: [id])
+
+  items       QuoteItem[]
+  jobs        Job[]
+
+  subtotal    Float       @default(0)
+  taxRate     Float       @default(10)
+  tax         Float       @default(0)
+  total       Float       @default(0)
+
+  notes       String?
+  terms       String?
+  validUntil  DateTime?
+
+  sentAt      DateTime?
+  acceptedAt  DateTime?
+  declinedAt  DateTime?
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model QuoteItem {
+  id          String  @id @default(cuid())
+  quoteId     String
+  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float
+  total       Float
+  sortOrder   Int     @default(0)
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  number      String        @unique
+  status      InvoiceStatus @default(DRAFT)
+  title       String
+
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id])
+
+  createdById String
+  createdBy   User          @relation(fields: [createdById], references: [id])
+
+  jobId       String?       @unique
+  job         Job?          @relation(fields: [jobId], references: [id])
+
+  items       InvoiceItem[]
+
+  subtotal    Float         @default(0)
+  taxRate     Float         @default(10)
+  tax         Float         @default(0)
+  total       Float         @default(0)
+
+  dueDate     DateTime?
+  paidDate    DateTime?
+  notes       String?
+  terms       String?
+
+  sentAt      DateTime?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float
+  total       Float
+  sortOrder   Int     @default(0)
+}
+
+model TimeEntry {
+  id        String    @id @default(cuid())
+  jobId     String
+  job       Job       @relation(fields: [jobId], references: [id])
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  startTime DateTime
+  endTime   DateTime?
+  duration  Int?
+  notes     String?
+  createdAt DateTime  @default(now())
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  jobId     String?
+  job       Job?     @relation(fields: [jobId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  message   String
+  createdAt DateTime @default(now())
+}
